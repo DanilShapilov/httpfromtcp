@@ -67,7 +67,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		numBytesRead, err := reader.Read(buf[readToIndex:])
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				req.ParserState = requestStateDone
+				if req.ParserState != requestStateDone {
+					return nil, fmt.Errorf("incomplete request")
+				}
 				break
 			}
 			return nil, err
