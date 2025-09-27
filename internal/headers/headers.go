@@ -67,7 +67,12 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 func (h Headers) Set(key, value string) {
 	key = strings.ToLower(key)
-	h[key] = value
+	v, exists := h[key]
+	if exists {
+		h[key] = fmt.Sprintf("%s, %s", v, value)
+	} else {
+		h[key] = value
+	}
 }
 
 func validTokens(data []byte) bool {

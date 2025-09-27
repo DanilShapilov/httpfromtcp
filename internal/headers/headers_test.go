@@ -49,6 +49,16 @@ func TestHeadersParse(t *testing.T) {
 	assert.Equal(t, 25, n)
 	assert.False(t, done)
 
+	// Test: Valid single header with same existing header
+	headers = map[string]string{"host": "localhost:42069"}
+	data = []byte("Host: localhost:69420\r\nAccept: */*\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, headers)
+	assert.Equal(t, "localhost:42069, localhost:69420", headers["host"])
+	assert.Equal(t, 23, n)
+	assert.False(t, done)
+
 	// Test: Valid 2 headers done=true
 	headers = NewHeaders()
 	data = []byte("    Host:     localhost:42069    \r\n Token: 123qweasd345 \r\n\r\n")
