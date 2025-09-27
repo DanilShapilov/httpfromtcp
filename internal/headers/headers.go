@@ -14,6 +14,24 @@ func NewHeaders() Headers {
 
 const crlf = "\r\n"
 
+var allowedSpecialChars = map[byte]struct{}{
+	'!':  {},
+	'#':  {},
+	'$':  {},
+	'%':  {},
+	'&':  {},
+	'\'': {},
+	'*':  {},
+	'+':  {},
+	'-':  {},
+	'.':  {},
+	'^':  {},
+	'_':  {},
+	'`':  {},
+	'|':  {},
+	'~':  {},
+}
+
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	idx := bytes.Index(data, []byte(crlf))
 	if idx == -1 {
@@ -34,8 +52,12 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, fmt.Errorf("invalid header name: '%s'", key)
 	}
 	key = strings.TrimSpace(key)
-
+	key = strings.ToLower(key)
 	value := strings.TrimSpace(parts[1])
+
+	if !validTokens([]byte(key)) {
+		return 0, false, fmt.Errorf("invalid header token found: '%s'", key)
+	}
 
 	h.Set(key, value)
 	bytesConsumed := idx + len(crlf)
@@ -44,5 +66,25 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 }
 
 func (h Headers) Set(key, value string) {
+	key = strings.ToLower(key)
 	h[key] = value
+}
+
+func validTokens(data []byte) bool {
+	for _, c := range data {
+		if !isTokenChar(c) {
+			return false
+		}
+	}
+	return true
+}
+
+func isTokenChar(c byte) bool {
+	if c >= '0' && c <= '9' ||
+		c >= 'a' && c <= 'z' ||
+		c >= 'A' && c <= 'Z' {
+		return true
+	}
+	_, exists := allowedSpecialChars[c]
+	return exists
 }
