@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/DanilShapilov/httpfromtcp/internal/headers"
 )
 
 const crlf = "\r\n"
@@ -15,6 +17,7 @@ type ParserState int
 
 const (
 	requestStateInitialized ParserState = iota
+	requestStateParsingHeaders
 	requestStateDone
 )
 
@@ -26,10 +29,26 @@ type RequestLine struct {
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 	ParserState ParserState
 }
 
 func (r *Request) parse(data []byte) (int, error) {
+	if r.ParserState == requestStateDone {
+		return 0, fmt.Errorf("error: trying to read data in a done state")
+	}
+	totalBytesParsed := 0
+	for r.ParserState != requestStateDone {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		totalBytesParsed += n
+		// if err != nil {
+		return totalBytesParsed, err
+		// }
+	}
+	return totalBytesParsed, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
 	if r.ParserState == requestStateInitialized {
 		rLine, n, err := parseRequestLine(data)
 		if err != nil {
@@ -41,11 +60,15 @@ func (r *Request) parse(data []byte) (int, error) {
 			return 0, nil
 		}
 		r.RequestLine = *rLine
-		r.ParserState = requestStateDone
+		r.ParserState = requestStateParsingHeaders
 		return n, nil
 	}
-	if r.ParserState == requestStateDone {
-		return 0, fmt.Errorf("error: trying to read data in a done state")
+	if r.ParserState == requestStateParsingHeaders {
+		n, done, err := r.Headers.Parse(data)
+		if done {
+			r.ParserState = requestStateDone
+		}
+		return n, err
 	}
 	return 0, fmt.Errorf("error: unknown state")
 }
@@ -55,6 +78,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	readToIndex := 0
 	req := &Request{
 		ParserState: requestStateInitialized,
+		Headers:     headers.NewHeaders(),
 	}
 
 	for req.ParserState != requestStateDone {
@@ -67,6 +91,10 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		numBytesRead, err := reader.Read(buf[readToIndex:])
 		if err != nil {
 			if errors.Is(err, io.EOF) {
+				_, error := req.parse(buf[:readToIndex]) // in case we didn't even started
+				if error != nil {
+					return nil, error
+				}
 				if req.ParserState != requestStateDone {
 					return nil, fmt.Errorf("incomplete request")
 				}
