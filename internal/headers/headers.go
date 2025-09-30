@@ -75,6 +75,12 @@ func (h Headers) Set(key, value string) {
 	}
 }
 
+func (h Headers) Get(key string) (string, bool) {
+	key = strings.ToLower(key)
+	v, exists := h[key]
+	return v, exists
+}
+
 func validTokens(data []byte) bool {
 	for _, c := range data {
 		if !isTokenChar(c) {
