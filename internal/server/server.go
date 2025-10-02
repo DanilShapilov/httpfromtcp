@@ -21,10 +21,10 @@ type HandlerError struct {
 
 func (he HandlerError) Write(w io.Writer) {
 	response.WriteStatusLine(w, he.StatusCode)
-	messageBytees := []byte(he.Message)
-	headers := response.GetDefaultHeaders(len(messageBytees))
+	messageBytes := []byte(he.Message)
+	headers := response.GetDefaultHeaders(len(messageBytes))
 	response.WriteHeaders(w, headers)
-	w.Write(messageBytees)
+	w.Write(messageBytes)
 }
 
 // Server is an HTTP 1.1 server
