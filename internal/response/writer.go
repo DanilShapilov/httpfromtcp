@@ -1,0 +1,62 @@
+package response
+
+import (
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/DanilShapilov/httpfromtcp/internal/headers"
+)
+
+type writerState int
+
+const (
+	writerStateStatusLine writerState = iota
+	writerStateHeaders
+	writerStateBody
+)
+
+type Writer struct {
+	writer      io.Writer
+	writerState writerState //ensures that the user of my library calls WriteStatusLine, WriteHeaders, and WriteBody in the correct order. It just gives them a nice explicit error if they do stuff out of order.
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{
+		writerState: writerStateStatusLine,
+		writer:      w,
+	}
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	if w.writerState != writerStateStatusLine {
+		return fmt.Errorf("cannot write status line in state %d", w.writerState)
+	}
+	defer func() { w.writerState = writerStateHeaders }()
+	_, err := w.writer.Write(getStatusLine(statusCode))
+	return err
+}
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+	if w.writerState != writerStateHeaders {
+		return fmt.Errorf("cannot write headers in state %d", w.writerState)
+	}
+	defer func() { w.writerState = writerStateBody }()
+
+	var b strings.Builder
+	for key, value := range headers {
+		fmt.Fprintf(&b, "%s: %s%s", key, value, crlf)
+	}
+	b.WriteString(crlf)
+	_, err := io.WriteString(w.writer, b.String())
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	if w.writerState != writerStateBody {
+		return 0, fmt.Errorf("cannot write body in state %d", w.writerState)
+	}
+	return w.writer.Write(p)
+}
