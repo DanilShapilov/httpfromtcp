@@ -14,6 +14,7 @@ const (
 	writerStateStatusLine writerState = iota
 	writerStateHeaders
 	writerStateBody
+	writerStateTrailers
 )
 
 type Writer struct {
@@ -48,9 +49,7 @@ func (w *Writer) WriteHeaders(headers headers.Headers) error {
 	}
 	b.WriteString(crlf)
 	_, err := io.WriteString(w.writer, b.String())
-	if err != nil {
-		return err
-	}
+
 	return err
 }
 
@@ -92,9 +91,30 @@ func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
 	// size := []byte(strconv.FormatInt(int64(len(p)), 16))
 	// return w.writer.Write(slices.Concat(size, []byte(crlf), p, []byte(crlf)))
 }
+
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
 	if w.writerState != writerStateBody {
 		return 0, fmt.Errorf("cannot write body in state %d", w.writerState)
 	}
-	return w.writer.Write([]byte("0" + crlf + crlf))
+
+	n, err := w.writer.Write([]byte("0" + crlf))
+	if err != nil {
+		return n, err
+	}
+	w.writerState = writerStateTrailers
+	return n, nil
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	if w.writerState != writerStateTrailers {
+		return fmt.Errorf("cannot write trailers in state %d", w.writerState)
+	}
+	defer func() { w.writerState = writerStateBody }()
+	var b strings.Builder
+	for key, value := range h {
+		fmt.Fprintf(&b, "%s: %s%s", key, value, crlf)
+	}
+	b.WriteString(crlf)
+	_, err := io.WriteString(w.writer, b.String())
+	return err
 }
