@@ -80,6 +80,11 @@ func (h Headers) Override(key, value string) {
 	h[key] = value
 }
 
+func (h Headers) Remove(key string) {
+	key = strings.ToLower(key)
+	delete(h, key)
+}
+
 func (h Headers) Get(key string) (string, bool) {
 	key = strings.ToLower(key)
 	v, exists := h[key]

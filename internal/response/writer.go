@@ -60,3 +60,41 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	}
 	return w.writer.Write(p)
 }
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	if w.writerState != writerStateBody {
+		return 0, fmt.Errorf("cannot write body in state %d", w.writerState)
+	}
+
+	chunkSize := len(p)
+
+	nTotal := 0
+	n, err := fmt.Fprintf(w.writer, "%x\r\n", chunkSize)
+	if err != nil {
+		return nTotal, err
+	}
+	nTotal += n
+
+	n, err = w.writer.Write(p)
+	if err != nil {
+		return nTotal, err
+	}
+	nTotal += n
+
+	n, err = w.writer.Write([]byte("\r\n"))
+	if err != nil {
+		return nTotal, err
+	}
+	nTotal += n
+	return nTotal, nil
+
+	// my initial solution
+	// size := []byte(strconv.FormatInt(int64(len(p)), 16))
+	// return w.writer.Write(slices.Concat(size, []byte(crlf), p, []byte(crlf)))
+}
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	if w.writerState != writerStateBody {
+		return 0, fmt.Errorf("cannot write body in state %d", w.writerState)
+	}
+	return w.writer.Write([]byte("0" + crlf + crlf))
+}
